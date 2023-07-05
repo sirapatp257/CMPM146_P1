@@ -162,7 +162,7 @@ def bidirectional_a_star(src, dst, mesh):
         return distance(point, dest)
 
     path = []
-    box_path = []  # An array of boxes to facilitate legally drawing boxes
+    box_path = []  # An array of boxes to facilitate legally drawing path
     boxes = {src_box: src}
 
     frontier = []
@@ -193,7 +193,7 @@ def bidirectional_a_star(src, dst, mesh):
         boxes[b] = entry_point
 
         if (target == dst and b in prev_bw) or (target == src and b in prev_fw):
-            a = prev_fw[b]
+            a = b
             while not (a is None):
                 box_path.append(a)
                 a = prev_fw[a]
