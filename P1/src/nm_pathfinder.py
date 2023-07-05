@@ -205,6 +205,7 @@ def bidirectional_a_star(src, dst, mesh):
             for box in box_path:
                 path.append(pt)
                 pt = get_detail_point(pt, box)
+            path.append(pt)  # get the point leading into the source box
             path.append(src)
             break
 
