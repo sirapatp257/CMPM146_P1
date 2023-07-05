@@ -22,6 +22,7 @@ def find_path(source_point, destination_point, mesh):
     boxes = {}
 
     # path, boxes = BFS(source_point, destination_point, mesh)
+    # path, boxes = a_star(source_point, destination_point, mesh)
     path, boxes = bidirectional_a_star(source_point, destination_point, mesh)
     if not path:
         print("No path!")
@@ -106,7 +107,7 @@ def a_star(src, dst, mesh):
         entry_point = src
         parent = came_from[b]
         if not (parent is None):
-            entry_point = get_detail_point(boxes[came_from[b]], b)
+            entry_point = get_detail_point(boxes[parent], b)
 
         boxes[b] = entry_point
         if b == dst_box:
@@ -114,6 +115,7 @@ def a_star(src, dst, mesh):
             while not (b is None):
                 path.append(boxes[b])
                 b = came_from[b]
+            print(path)
             break
 
         for c in mesh['adj'][b]:
@@ -147,9 +149,6 @@ def find_boxes(src, dst, mesh):
     return start_box, end_box
 
 def bidirectional_a_star(src, dst, mesh):
-    """
-    
-    """
 
     src_box, dst_box = find_boxes(src, dst, mesh)
     if src_box is None or dst_box is None:
@@ -163,62 +162,76 @@ def bidirectional_a_star(src, dst, mesh):
         return distance(point, dest)
 
     path = []
-    boxes = {src_box: src, dst_box: dst}
+    box_path = []  # An array of boxes to facilitate legally drawing boxes
+    boxes = {src_box: src}
 
     frontier = []
-    heappush(frontier, (0, 0, src_box, dst_box))
+    heappush(frontier, (0, src_box, dst))  # Enqueue source box for searching forward
+    heappush(frontier, (0, dst_box, src))  # Enqueue destination box for searching backward
 
-    came_from = {src_box: None}
-    came_from_dst = {dst_box: None}
+    prev_fw = {src_box: None}
+    prev_bw = {dst_box: None}
 
     dist_so_far = {src_box: 0}
     dist_from_dst = {dst_box: 0}
 
     while frontier:
-        fw_priority, bw_priority, b, g = heappop(frontier)
-        entry_point = src
-        dest_point = dst
-        parent_fw = came_from[b]
-        if not (parent_fw is None):
-            entry_point = get_detail_point(boxes[came_from[b]], b)
-        parent_bw = came_from_dst[g]
-        if not (parent_bw is None):
-            dest_point = get_detail_point(boxes[came_from_dst[g]], g)
+        priority, b, target = heappop(frontier)
+        entry_point = None
+
+        if target == dst:
+            entry_point = src
+            parent_fw = prev_fw[b]
+            if not (parent_fw is None):
+                entry_point = get_detail_point(boxes[parent_fw], b)
+        elif target == src:
+            entry_point = dst
+            parent_bw = prev_bw[b]
+            if not (parent_bw is None):
+                entry_point = get_detail_point(boxes[parent_bw], b)
 
         boxes[b] = entry_point
-        boxes[g] = dest_point
 
-        if b in boxes[g]:
-            print('burger')
-
-        if b == g:
-            path.append(src)
+        if (target == dst and b in prev_bw) or (target == src and b in prev_fw):
+            a = prev_fw[b]
+            while not (a is None):
+                box_path.append(a)
+                a = prev_fw[a]
             while not (b is None):
-                path.append(boxes[b])
-                b = came_from[b]
-            while not (g is None):
-                path.append(boxes[g])
-                g = came_from_dst[g]
+                box_path.insert(0, b)
+                b = prev_bw[b]
+
+            pt = dst
+            for box in box_path:
+                path.append(pt)
+                pt = get_detail_point(pt, box)
+            path.append(src)
             break
 
+
         for c in mesh['adj'][b]: 
-            child_entry = get_detail_point(boxes[b], c)
-            dist_to_child = dist_so_far[b] + distance(boxes[b], child_entry)
-            child_priority = dist_to_child + heuristic(child_entry, dst)
+            if target == dst:
+                child_entry = get_detail_point(boxes[b], c)
+                dist_to_child = dist_so_far[b] + distance(boxes[b], child_entry)
+                child_priority = dist_to_child + heuristic(child_entry, target)
 
-            if not (c in came_from) or (dist_to_child < dist_so_far[c]):
-                came_from[c] = b
-                dist_so_far[c] = dist_to_child
-                heappush(frontier, (child_priority, bw_priority, c, g))
+                if not (c in prev_fw) or (dist_to_child < dist_so_far[c]):
+                    prev_fw[c] = b
+                    dist_so_far[c] = dist_to_child
+                    heappush(frontier, (child_priority, c, target))
+                    if not (c in boxes): boxes[c] = {}
+                    boxes[c] = entry_point
 
-        for h in mesh['adj'][g]: 
-            dst_child_entry = get_detail_point(boxes[g], h)
-            dist_to_dst_child = dist_from_dst[g] + distance(boxes[g], dst_child_entry)
-            dst_child_priority = dist_to_dst_child + heuristic(dst_child_entry, src)
+            elif target == src:
+                child_entry = get_detail_point(boxes[b], c)
+                dist_to_child = dist_from_dst[b] + distance(boxes[b], child_entry)
+                child_priority = dist_to_child + heuristic(child_entry, target)
 
-            if not (h in came_from_dst) or (dist_to_dst_child < dist_from_dst[h]):
-                came_from_dst[h] = g
-                dist_from_dst[h] = dist_to_dst_child
-                heappush(frontier, (fw_priority, dst_child_priority, b, h))
+                if not (c in prev_bw) or (dist_to_child < dist_from_dst[c]):
+                    prev_bw[c] = b
+                    dist_from_dst[c] = dist_to_child
+                    heappush(frontier, (child_priority, c, target))
+                    if not (c in boxes): boxes[c] = {}
+                    boxes[c] = entry_point
 
     return path, boxes
